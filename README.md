@@ -50,7 +50,7 @@ What each command does:
 
 1. The first two lines make a private Python environment, so nothing gets installed on your whole computer.
 2. `pip install -r requirements.txt` installs the three libraries the loader script needs.
-3. `python scripts/load_data_duckdb.py` reads the Excel file and puts it into a DuckDB file called `bumpa_orders.duckdb`. That file doesn't exist until you run this, and it's the "raw table" in the diagram above.
+3. `python scripts/load_data_duckdb.py` reads the Excel file and puts it into a DuckDB file called `bumpa_merchant_orders.duckdb`. That file doesn't exist until you run this, and it's the "raw table" in the diagram above.
 4. `dbt build --profiles-dir .` builds the staging model, builds the mart, and runs all the tests. The `--profiles-dir .` part tells dbt to use the `profiles.yml` in this folder, which holds the database connection.
 
 The answer to Task 2 is embedded as a comment in the task2.sql file but to rerun and  see the answer, you can use the following command after the build finishes:
@@ -123,7 +123,7 @@ A test is a check that runs automatically. If the data breaks the rule, the test
 - **The mart adds up to the staging table (custom test).** The mart's order count and net amount should match the dated orders in staging. This catches anything lost or double-counted between the two steps.
 
 
-### The incremental loading note
+## The incremental loading note
 
 **The problem.** Right now every time I run `dbt build`, it deletes and rebuilds everything from scratch. With 10,000 rows that takes a second. With millions of new rows arriving every day, rebuilding the whole history each time would be slow and expensive.
 
