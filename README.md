@@ -125,16 +125,23 @@ A test is a check that runs automatically. If the data breaks the rule, the test
 
 ### The incremental loading note
 
-**The problem.** Right now every time I run `dbt build`, it deletes and rebuilds everything from scratch. With 10,000 rows that takes a second. With millions of new rows arriving every day, rebuilding the whole history each time would be slow and expensive.
+At the moment, every time I run `dbt build` it deletes everything and builds it again from scratch. With 10,000 rows that takes about a second, so it's fine. With millions of rows coming in every day it would take too long. I haven't built the fix, but this is what I would do.
 
-**The idea.** "Incremental" means only processing the new data and adding it to what's already there. Here's how I'd set it up:
+The idea is called [incremental](https://docs.getdbt.com/docs/build/incremental-models-overview?version=2). Each run only handles the new rows and adds them to what is already there.
 
-1. **Keep every delivery of raw data and tag it with the time it arrived.** My loader already adds a `_loaded_at` column to every row. At scale, I'd add new batches to the raw table instead of replacing it. This also explains the duplicates in this data: if a system sends the same order twice, you get two rows. Duplicates will keep arriving, so the cleaning step has to handle them every time.
-2. **Make the staging model only look at new rows.** dbt has a setting called incremental(https://docs.getdbt.com/docs/build/incremental-models-overview?version=2) for this. On each run, the model would read only raw rows that arrived after the latest `_loaded_at` it has already processed. That "last processed" point is called a watermark.
-3. **Use the arrival time as the watermark, not the order date.** This is easy to get wrong. Say an order from March gets corrected in October. Its order date is old, so if I filtered on order date I'd skip it and never see the fix. Its arrival time is new, so I'll catch it.
-4. **Update orders that already exist, instead of adding them again.** dbt can be told that `order_id` identifies a row. If an incoming order matches one already in the table, it replaces the old row. If it's new, it's added. That keeps one row per order even when duplicates keep arriving.
-5. **Only rebuild the days that changed in the daily summary.** If new data touches 3 March, I'd delete the 3 March rows from the mart and recalculate just that day. Recalculating a whole day is simpler and safer than trying to adjust the old totals.
-6. **Re-check the last few days every run.** I'd reprocess, say, the last 3 days each time, in case data turns up late. It costs a little extra computing for much better accuracy.
+First I would change my loader. Right now it replaces the raw table every time. Instead it should add each new batch to the bottom. It already puts a `_loaded_at` column on every row, which tells me when the row arrived, and I'd keep that. This matters because the duplicates in this data probably come from the same order being sent twice. That will keep happening, so the cleaning step has to deal with it on every run.
+
+Then I would change the staging model so that it only reads rows that arrived after the last run. The point where it stopped last time is called a watermark. My staging model doesn't pass `_loaded_at` through yet, so I'd need to add that.
+
+I would use the arrival time as the watermark and not the order date. Say an order from March is corrected in October. If I only looked at order dates, I would miss it, because March is old. But it arrived in October, so the arrival time catches it.
+
+Some of the new rows will be orders I already have. So I would tell dbt that `order_id` identifies an order (this setting is called `unique_key`). If an order already exists, the new row replaces the old one. If it doesn't exist, it gets added. That way there is still one row per order.
+
+The daily summary works the same way. If a new batch has orders from 3 March, I would delete the 3 March rows and work out that day again. That is easier than trying to fix the old totals. I would also go back over the last few days on every run, in case some data arrives late. I haven't tested how many days is enough. Three is just a first guess.
+
+Small differences can slowly build up when you only ever add new data. So now and then, maybe once a week, I would rebuild everything from scratch with dbt's `--full-refresh` option. My tests, like the one checking that order IDs are unique, would show me if the two versions ever disagree.
+
+The orders with no date also need a rule. I would keep leaving them out of the daily summary, and count them on each run. If that number suddenly jumps, something has probably gone wrong before the data reaches me.
 
 
 
@@ -186,11 +193,11 @@ I'd build all of this with dbt, on top of the staging model I already have. One 
 
 ### Starting simple
 
-With only 6 months of data and around 1,200 merchants, I wouldn't start with a machine learning model. I'd start with a rule: if a merchant had paid orders in the previous 2 months but none in the last 30 days, flag them. Run that for a short period to see how many flagged merchants actually churned versus how many came back on their own, and use that to decide whether the rule is any good.
+With only 6 months of data and around 1,200 merchants, I wouldn't start with a machine learning model. Sometimes the best solutions are the most obvious/simplest , So I'd start with a rule: if a merchant had paid orders in the previous 2 months but none in the last 30 days, flag them, then Rank by revenue accumulated. Run that for a short period to see how many flagged merchants actually churned versus how many came back on their own, and use that to decide whether the rule is any good.
 
-If the rule isn't sharp enough, logistic regression is the next step. It's fast, it produces a probability, and you can explain to a non-technical manager exactly why a specific merchant scored high. Gradient boosted trees can pick up patterns logistic regression misses, but they're harder to explain and I wouldn't reach for them unless the simpler model was clearly falling short. Six months of data is probably not enough to justify the added complexity anyway.
+If the rule isn't sharp enough, logistic regression is the next step. It's fast, it produces a probability, if logistic regression doesn't give a good prediction rate, more complex models like Gradient boosted trees can pick up patterns logistic regression misses, but they're harder to explain and I wouldn't reach for them unless the simpler model was clearly falling short.
 
-Either way, I'd train on the earlier months and test on the later ones — never a random split. A random split leaks future merchants into the training set and makes the numbers look better than they are.
+Either way, I'd train on the earlier months and test on the later ones, never a random split. A random split leaks future merchants into the training set and makes the numbers look better than they are.
 
 The metric that matters isn't accuracy. It's: of the top 200 merchants I flag this month, how many genuinely churned? The business team has limited capacity, so precision at the top of the list matters more than overall scores.
 
