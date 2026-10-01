@@ -61,10 +61,6 @@ python -c "import duckdb; print(duckdb.connect('bumpa_merchant_orders.duckdb', r
 
 That one-liner opens the database, runs the SQL file, and prints the result.
 
-One warning during `dbt build` is normal. It comes from a test on the raw table that reports the duplicate order IDs I describe below. I set it to a warning on purpose so it doesn't stop the build.
-
-If DuckDB says it can't open the database file, the DuckDB version used by the loader is probably newer than the one inside dbt. Lower the `duckdb` version in `requirements.txt` and run the loader again.
-
 ## What I found in the data
 
 Before building anything, I spent time looking at the data. The queries are in `exploration/data_exploration.sql`, with the results written next to them as comments. Every decision in the dbt models comes from something in this list.
