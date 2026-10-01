@@ -123,7 +123,7 @@ A test is a check that runs automatically. If the data breaks the rule, the test
 - **The mart adds up to the staging table (custom test).** The mart's order count and net amount should match the dated orders in staging. This catches anything lost or double-counted between the two steps.
 
 
-## The incremental loading note
+### The incremental loading note
 
 **The problem.** Right now every time I run `dbt build`, it deletes and rebuilds everything from scratch. With 10,000 rows that takes a second. With millions of new rows arriving every day, rebuilding the whole history each time would be slow and expensive.
 
