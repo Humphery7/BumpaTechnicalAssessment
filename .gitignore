@@ -15,3 +15,5 @@ __pycache__/
 .DS_Store
 __MACOSX/
 dbt_internal_packages/
+
+.user.yml
