@@ -1,7 +1,5 @@
 # Bumpa Data Technical Assessment
 
-This repo is my answer to the three tasks in the assessment. It uses the merchant orders spreadsheet that came with it (10,000 rows, one row per order).
-
 ## What's in the repo
 
 | Task | What I did | Where to find it |
@@ -13,7 +11,7 @@ This repo is my answer to the three tasks in the assessment. It uses the merchan
 
 ## Words you'll see in this README
 
-I use these a lot, so here they are in plain terms.
+some terms definitions:
 
 - **dbt**: a tool for turning raw data into clean, usable tables. You write each step as a short SQL file, and dbt runs them in the right order. It also runs checks on the results.
 - **SQL**: the language used to ask questions of a database, like "count the orders per day".
@@ -44,7 +42,7 @@ python -m venv .venv
 source .venv/bin/activate            # if on Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-python scripts/load_raw.py
+python scripts/load_data_duckdb.py
 dbt build --profiles-dir .
 ```
 
