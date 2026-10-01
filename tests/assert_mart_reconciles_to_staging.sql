@@ -1,4 +1,4 @@
--- Nothing may be lost or invented between staging and the mart. A row is
+-- Nothing should be lost or invented between staging and the mart. this is a test to affirm that. A row is
 -- returned if the mart's order count or net amount differs from the dated
 -- orders in staging.
 with stg as (

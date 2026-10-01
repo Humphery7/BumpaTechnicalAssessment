@@ -3,7 +3,7 @@
 
 -- 1. Row count -------------------------------------------------------------
 select count(*) as total_rows from raw.merchant_orders;
--- 10000
+-- total orders: 10000
 
 
 -- 2. Distinct counts -------------------------------------------------------
@@ -13,7 +13,8 @@ select
     count(distinct currency)    as unique_currencies,
     count(distinct status)      as unique_statuses
 from raw.merchant_orders;
--- 9700 unique orders in 10000 rows -> 300 surplus rows. 1219 merchants.
+-- result: unique_orders	unique_merchants	unique_currencies	unique_statuses
+--            9700	              1219	                3	              3
 
 
 -- 3. Are duplicate order_ids exact duplicates, or conflicting versions? ----
@@ -31,7 +32,8 @@ from (
     group by order_id
     having count(*) > 1
 );
--- 296 ids, 300 surplus rows, up to 3 copies, 0 conflicting
+-- result: duplicated_order_ids		surplus_rows	max_copies	ids_with_conflicting_values
+--              296		              300	          3	                     0
 -- => every duplicate is an exact copy, so keeping one row is lossless.
 
 
@@ -48,7 +50,7 @@ from raw.merchant_orders;
 -- Only order_date: 305 rows (298 after de-duplication).
 
 
--- 4b. Is the missing date systematic? --------------------------------------
+-- 4b. Are missing dates concentrated in a particular type of order? ------
 select status, count(*) as orders,
        count(*) filter (where order_date is null) as missing_date,
        round(100.0 * count(*) filter (where order_date is null) / count(*), 1) as pct
@@ -127,3 +129,36 @@ from (select distinct order_id, merchant_id, amount from raw.merchant_orders whe
 select count(*) filter (where abs(amount * 100 - round(amount * 100)) > 1e-6) as more_than_2dp
 from raw.merchant_orders;
 -- 0 -> amount is stored as DOUBLE but only ever has 2 decimals; staging casts to DECIMAL(18,2).
+
+
+
+-- 11. Retention (done after dbt build) -------------------------------------------------------------
+with merchant_months as (
+    select distinct merchant_id, date_trunc('month', order_date) as order_month
+    from analytics.stg_merchant_orders
+    where not is_missing_order_date
+      -- and status = 'paid'      -- uncomment for the paid-only version
+)
+select
+    a.order_month,
+    count(*)                                                    as active_merchants,
+    count(*) filter (where b.merchant_id is null)               as not_back_next_month,
+    round(100.0 * count(*) filter (where b.merchant_id is null) / count(*), 1) as pct_not_back
+from merchant_months a
+left join merchant_months b
+       on b.merchant_id = a.merchant_id
+      and b.order_month = a.order_month + interval 1 month
+where a.order_month < (select max(order_month) from merchant_months)
+group by a.order_month
+order by a.order_month;
+
+-- result:
+-- │     order_month     │ active_merchants │ not_back_next_month │ pct_not_back │
+-- │      timestamp      │      int64       │        int64        │    double    │
+-- ├─────────────────────┼──────────────────┼─────────────────────┼──────────────┤
+-- │ 2026-01-01 00:00:00 │              410 │                 197 │         48.0 │
+-- │ 2026-02-01 00:00:00 │              608 │                 295 │         48.5 │
+-- │ 2026-03-01 00:00:00 │              816 │                 375 │         46.0 │
+-- │ 2026-04-01 00:00:00 │              654 │                 278 │         42.5 │
+-- │ 2026-05-01 00:00:00 │              692 │                 324 │         46.8 │
+-- └─────────────────────┴──────────────────┴─────────────────────┴──────────────

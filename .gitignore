@@ -16,4 +16,6 @@ __pycache__/
 __MACOSX/
 dbt_internal_packages/
 
-*.user
+
+# dbt user-specific config
+.user.yml

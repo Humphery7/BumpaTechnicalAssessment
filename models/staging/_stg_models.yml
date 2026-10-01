@@ -5,16 +5,14 @@ models:
       missing dates flagged.
     columns:
       - name: order_id
-        description: The Primary key.
+        description: The unique identifier for each order.
         data_tests:
           - unique
           - not_null
       - name: merchant_id
-        description: Merchant who received the order.
+        description: The unique identifier for each merchant.
         data_tests:
           - not_null
-      - name: order_date
-        description: Calendar date of the order. NULL when is_missing_order_date is true.
       - name: is_missing_order_date
         description: True when the source row had no date.
         data_tests:

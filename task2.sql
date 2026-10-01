@@ -1,30 +1,44 @@
--- Task 2: % of merchants who ordered in their first calendar month AND then
+-- Task 2: The % of merchants who ordered in their first calendar month AND then
 -- ordered in each of the next three calendar months.
 --
--- Dialect : DuckDB
--- Requires: `dbt build` has run (reads analytics.stg_merchant_orders, so the
---           de-duplication and typing live in one place, not copied here).
+-- Database: DuckDB
+-- Requires: `dbt build` has run (reads analytics.stg_merchant_orders).
 --
 -- Definitions
---   first calendar month  the month of a merchant's earliest dated order.
---                         (By construction they ordered in it.)
---   retained              orders in ALL of months +1, +2 and +3 after that month
---                         (at least one order in each; the months need not
---                         be consecutive orders, just each non-empty).
---   eligible              a merchant can only be judged retained or not if the
---                         data contains their full 3-month follow-up window.
---                         The data ends 2026-06-28, so only Jan-Mar cohorts
---                         qualify; Apr-Jun cohorts (12 merchants) are excluded
---                         from the denominator. Counting them would score them
---                         as failures merely because the future hasn't happened.
---   dated orders only     the 298 orders with no date cannot be assigned to a
---                         month, so they are ignored.
---
--- "Placed an order" is read literally for the headline (scope = all_statuses:
--- paid, refunded and failed all count). The second row (scope = paid_only)
--- shows the stricter reading where only paid orders count, since a failed
--- payment is arguably not real merchant activity. The two can differ.
+--   First calendar month:  We will define this as the month of a merchant's earliest dated order
 
+--   Retained:              We will calculate retention in two ways here:
+--                          1. all_statuses: the merchant had at least one order in each of months +1, +2 and +3,
+--                             regardless of whether the order was paid, refunded or failed.\
+--
+--                          2. paid_only: the merchant had at least one paid order in each of months +1, +2 and +3.
+
+--   Eligible:              A merchant is only eligible for the retention calculation if we have
+--                          the full 3-month follow-up period for them. Since the data ends on
+--                          2026-06-28, only Jan-Mar cohorts have enough history. Apr-Jun cohorts
+--                          are excluded because their 3-month window isn't complete.
+
+--   Dated orders only:     The 298 orders with no date cannot be assigned to a
+--                          month, so they are ignored.
+--
+-- The headline uses "placed an order" literally, so paid, refunded and failed
+-- orders all count. The paid_only row shows the stricter version where only
+-- successful payments count, since a failed payment may not represent actual
+-- merchant activity. The two definitions can produce different results.
+
+
+
+
+-- Result Otained: --------------------------------------------------------
+-- │    scope     │ eligible_merchants │ retained_merchants │ retention_pct │
+-- │   varchar    │       int64        │       int64        │    double     │
+-- ├──────────────┼────────────────────┼────────────────────┼───────────────┤
+-- │ all_statuses │               1207 │                189 │         15.66 │
+-- │ paid_only    │               1170 │                158 │          13.5 │
+-- └──────────────┴────────────────────┴────────────────────┴───────────────
+
+
+-- create different categories of scopes
 with scopes as (
 
     select 'all_statuses' as scope, ['paid', 'refunded', 'failed'] as counted_statuses
@@ -65,7 +79,7 @@ data_window as (
 
 eligible as (
 
-    -- Keep merchants whose month +3 falls inside the data.
+    -- only keeping the merchants whose month +3 falls inside the available data.
     select c.scope, c.merchant_id, c.cohort_month
     from cohorts as c
     join data_window as w using (scope)
@@ -98,3 +112,7 @@ select
 from retention
 group by scope
 order by scope;
+
+
+
+

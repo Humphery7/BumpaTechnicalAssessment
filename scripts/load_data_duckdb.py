@@ -1,8 +1,8 @@
 """
-load_raw.py - This is an ingestion step: From the Excel file -> DuckDB `raw.merchant_orders`.
+load_data_duckdb.py - This is an ingestion step: From the Excel file -> DuckDB `raw.merchant_orders`.
 
 It does the following:
-  1. Fail loudly if the file's columns are not the ones we expect, so schema
+  1. Fails if the file's columns are not the ones we expect, so schema
      drift is caught at the door rather than as a confusing downstream error.
   2. Stamp every row with `_source_file` and `_loaded_at` so a raw row can
      always be traced back to the load that produced it.
