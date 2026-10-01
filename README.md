@@ -119,10 +119,9 @@ A test is a check that runs automatically. If the data breaks the rule, the test
 - **Currency can only be NGN, KES or GHS (staging).** Same idea.
 - **Key columns are never empty (staging and mart).** Merchant ID, amount, status, currency and date.
 - **Refunds are negative and everything else isn't (custom test).** If a refund ever arrived as a positive number, it would quietly inflate revenue.
-- **The mart has one row per day and currency (custom test).** This protects the structure I promised.
+- **The mart has one row per day and currency (custom test).** This protects the structure expected.
 - **The mart adds up to the staging table (custom test).** The mart's order count and net amount should match the dated orders in staging. This catches anything lost or double-counted between the two steps.
 
-There's also a test on the raw table checking that order IDs are unique. It's set to a warning, because the duplicates are a known problem I fix in staging, and I didn't want it to block everything. The test of the same name on the staging table has to pass. Seeing the warning on the raw table and a pass on the staging table is how you can tell the cleaning worked.
 
 ### The incremental loading note
 
