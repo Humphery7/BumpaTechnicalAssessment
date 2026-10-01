@@ -170,67 +170,40 @@ A test is a check that runs automatically. If the data breaks the rule, the test
 
 Bumpa wants to flag merchants at risk of churn one month ahead, using order and payment data. Walk us through your approach from end to end, from raw data to a served prediction that a business team could act on.
 
-### Step 1: Decide what "leaving/churn" means
+### The definition problem
 
-This has to come first, because the whole model is built around it. If it is defined badly, everything after is wasted.
+When I looked at this data, between 43% and 49% of merchants who placed an order in a given month didn't place one the following month. That's nearly half the active merchants, every single month. If "didn't order next month" is the definition of churn, then almost half of all merchants are always at risk, and a list that long is useless. Nobody can act on it.
 
-Looking at this data shows why it's tricky. In every month, roughly 43% to 49% of merchants who ordered didn't order the following month. So "didn't order next month" is true for almost half of them. A list that flags half of all merchants isn't useful, because the team can't call everyone.
+So I'd push back and agree on something stricter with whoever owns the merchant relationship. Something like: a merchant who had at least one paid order in the last 90 days but then has none in the next calendar month. That filters out the casually-inactive ones and focuses attention on merchants who were clearly engaged and then went quiet. I'd count only paid orders, not failed or refunded ones, because a failed payment isn't really evidence of activity.
 
-With this I could agree on a stricter definition with the business. For example: *a merchant who had a paid order in the last 90 days, but has none in the next calendar month.* I'd then try a few variations, like a 60-day gap, and see which gives a list that's stable and worth acting on. I'd count only paid orders as activity, since a failed payment or a refund isn't a healthy sign.
+### Turning orders into features
 
-### Step 2: Turn the data into clues about each merchant
+With order and payment data available, I would have more features to use. To score merchants you need one row per merchant, not one row per order. That means turning the order history into summary columns. Some features I'd prioritise above everything else are **days since last paid order**, **How much they sell.**, **How many payments fail, and how many orders get refunded.**, **How long they've been a merchant** and **average and median gap between orders** . These could explain most of the signals. The rest could be refinements.
 
-Neither a rule nor a model can read a list of orders. Both need one row per merchant with columns that describe their behaviour. These columns are called features. I'd build them with dbt, on top of the staging model I already have. Examples:
+When comparing volumes I'd compare each merchant against their own past rather than against other merchants. The currencies aren't convertible, and a merchant doing 2 orders a month who drops to 0 is a very different risk profile from a high-volume merchant with the same drop.
 
-- **How long since their last paid order.** A merchant who last ordered 40 days ago is different from one who ordered yesterday.
-- **How many orders in the last 7, 30 and 90 days.** This shows how active they are.
-- **Whether they're speeding up or slowing down.** For example, the last 30 days compared with the 60 days before.
-- **Gaps between orders.** The average and the longest gap.
-- **How much they sell.** Compared against the merchant's own past, not other merchants, because the currencies differ and I have no exchange rates.
-- **How many payments fail, and how many orders get refunded.** Rising failures or refunds could be a warning sign. This dataset only has an order status. In real life I'd want proper payment data, like payouts and disputes, which would add much more here.
-- **How long they've been a merchant.**
+I'd build all of this with dbt, on top of the staging model I already have. One non-negotiable constraint: every feature must only use data from before the date the score is calculated. If a feature accidentally uses future information, the model looks brilliant in testing and fails completely in production. This is called data leakage and it's easy to do by accident if you're not careful about how you join tables.
 
-The important rule is that each row may only use information from before the date it describes. If a feature accidentally includes something from after that date, the score will look brilliant in testing and then fail in real use. This mistake is called "leakage".
+### Starting simple
 
-### Step 3: Train the model and check it honestly
+With only 6 months of data and around 1,200 merchants, I wouldn't start with a machine learning model. I'd start with a rule: if a merchant had paid orders in the previous 2 months but none in the last 30 days, flag them. Run that for a short period to see how many flagged merchants actually churned versus how many came back on their own, and use that to decide whether the rule is any good.
 
-I'd take a snapshot of every merchant at the end of each month. For each snapshot, the features are what I knew then, and the answer is whether they left in the following month. That gives the model thousands of past examples to learn from.
+If the rule isn't sharp enough, logistic regression is the next step. It's fast, it produces a probability, and you can explain to a non-technical manager exactly why a specific merchant scored high. Gradient boosted trees can pick up patterns logistic regression misses, but they're harder to explain and I wouldn't reach for them unless the simpler model was clearly falling short. Six months of data is probably not enough to justify the added complexity anyway.
 
-A few things I'd be careful about:
+Either way, I'd train on the earlier months and test on the later ones — never a random split. A random split leaks future merchants into the training set and makes the numbers look better than they are.
 
-- **Split the data by time (a time series split), not at random.** I'd train on older months and test on newer ones. A random split would put the same merchant in both the training and the test sets, which lets the model cheat by recognising merchants it has already seen.
-- **Start simple, and only add complexity if it earns its place.** I'd try three things in this order:
-  2. **A simple model** that weighs several clues at once (logistic regression, which can be turned into a points score).
-  3. **A more powerful model** (gradient-boosted trees, which are many small decision trees that learn from each other's mistakes), which can pick up combinations of clues the simple model misses.
+The metric that matters isn't accuracy. It's: of the top 200 merchants I flag this month, how many genuinely churned? The business team has limited capacity, so precision at the top of the list matters more than overall scores.
 
-  Each step has to do clearly better than the one before it when tested on later months it hasn't seen. If it doesn't, I stop there and use the simpler one, because it's cheaper to run and easier to explain to the business.
-- **Measure what the business cares about.** The team can only contact a limited number of merchants each week. So the question is: *if I take the top 200 merchants on the list, how many of them were truly about to leave?* I'd also check that a score of 0.7 really means about a 70% chance, and I'd rank merchants by how much money is at stake, not just how likely they are to leave.
-- **Be honest about the data.** This dataset has only six months and about 1,200 merchants. That's enough for a prototype, but too short to learn seasonality, like a quiet December. A real model needs more history.
+### Getting the score to the people who need it
 
-### Step 4: Put the results where people can use them
+A score sitting in a notebook is worthless. I'd write results to a table in the data warehouse - one row per merchant, with their churn probability, a rough risk tier, their typical monthly revenue, and a short plain-English reason for the score: "no paid order in 34 days, longest gap in 3 months." That last part is what makes it actionable. A support agent needs to know what to say, not just that a merchant is flagged.
 
-A score in a notebook helps nobody. Here's how I'd get it to the team:
+I'd run it weekly. Monthly is probably too slow to catch early signs, and anything more frequent is overkill when you're predicting a month ahead. The output table feeds into whatever CRM or support tool the team already uses.
 
-1. **Run it on a schedule.** Weekly or monthly is enough. Since I'm predicting a month ahead, real-time scoring would add cost and no benefit.
-2. **Write the results to a table** in the data warehouse. Each merchant gets a row. Here's a made-up example of what it might look like:
+High-risk, high-revenue merchants get a direct call. Mid-risk ones get an automated nudge in the app. Merchants with a pattern of failed payments probably need help with their payment setup specifically, so those get a different message.
 
-| merchant | chance of leaving | risk level | why | money at risk |
-|---|---|---|---|---|
-| M1234 | 82% | High | Orders down 60% vs the previous 3 months; 4 failed payments last month | high |
-| M2001 | 55% | Medium | No order in 25 days, longer than usual | medium |
+### Checking whether it actually works
 
-3. **Include the reasons and the priority.** Each merchant's row carries a short list of reasons, so a support agent knows what to say. For a rules score, the reasons are the rules that fired, like "no paid order in 34 days". For a model, I measure how much each clue pushed that merchant's score above the average merchant's, keep the top two or three, and write each as a plain sentence, like "Only 1 paid order this month (typical: 2)". These go in a `top_reasons` column. They show what moved the score, not what caused the merchant to leave, so I'd only show them for a score that passed the Step 4 backtest. Also, to rank by priority, I'd multiply the chance of leaving by the merchant's usual sales.
-4. **Send it where the team already works.** A dashboard for managers, and the table pushed into the CRM or support tool so the right person sees the right merchants.
-5. **Match the action to the risk.** High-risk, high-value merchants get a call from an account manager. Medium-risk ones get an automatic message or in-app nudge. Merchants with failing payments get help fixing their payment setup.
+The real test isn't whether the model is accurate — it's whether contacting the flagged merchants keeps more of them. I'd hold back some of the flagged merchants from outreach and compare what happens to them with the ones we contacted. If the contacted group stays active more often, that gives us evidence that the outreach is actually helping. If it doesn't, either the model is wrong or the outreach isn't effective, and both are worth knowing.
 
-### Step 5: Prove that it works, and keep it working
-
-The most important question isn't "is the model accurate?" It's "did contacting these merchants keep more of them?" To find out, I'd hold back a small random group (about 10%) from any outreach, even if they're flagged. Then I'd compare how many stayed in the contacted group against the held-back group. If the contacted group stays more, the whole system is working. I'd also record every outreach, so the results can feed back into the next version.
-
-After launch I'd keep an eye on:
-
-- Whether the data is arriving on time and in the expected volume (my dbt tests help here).
-- Whether the merchants' behaviour is drifting away from what the model learned.
-- How accurate it actually is, once the real outcomes come in a month later.
-
-I'd retrain on a schedule, monthly or quarterly, and keep old versions of the model so I can switch back if a new one performs worse.
+After launch I'd watch the data quality (the dbt tests already cover most of this), watch for drift in merchant behaviour over time, and retrain regularly. I'd always keep the previous model version so I can roll back if a new one performs worse on real outcomes.
