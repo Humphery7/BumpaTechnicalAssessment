@@ -1,0 +1,8 @@
+bumpa_assessment:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: bumpa_merchant_orders.duckdb
+      schema: analytics
+      threads: 4

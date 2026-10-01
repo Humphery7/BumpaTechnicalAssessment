@@ -1,0 +1,19 @@
+models:
+  - name: mart_daily_orders
+    description: >
+      Daily order counts and amounts per currency. Grain is (order_date,
+      currency), enforced by assert_mart_grain_is_unique. Orders with no date
+      are excluded. Amounts are in each row's own currency and must not be summed
+      across currencies.
+    columns:
+      - name: order_date
+        description: Calendar day.
+        data_tests:
+          - not_null
+      - name: currency
+        description: Currency of every amount on the row.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["NGN", "KES", "GHS"]

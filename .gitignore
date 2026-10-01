@@ -1,0 +1,17 @@
+# dbt build artifacts
+target/
+logs/
+dbt_packages/
+
+# Generated database (rebuilt by scripts/load_raw.py)
+*.duckdb
+*.duckdb.wal
+
+# Python
+.venv/
+__pycache__/
+
+# OS
+.DS_Store
+__MACOSX/
+dbt_internal_packages/

@@ -1,0 +1,16 @@
+sources:
+  - name: dbt_source
+    description: This is the schema populated by scripts/load_data_duckdb.py.
+    schema: raw
+    tables:
+      - name: merchant_orders
+        description: Full table data
+        columns:
+          - name: order_id
+          - name: merchant_id
+          - name: order_date
+          - name: amount
+          - name: currency
+          - name: status
+          - name: _source_file
+          - name: _loaded_at

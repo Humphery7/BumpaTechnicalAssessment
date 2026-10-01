@@ -1,0 +1,10 @@
+# Only the ingestion script needs Python. dbt v2 is a compiled binary installed
+# separately (see README), and it bundles its own DuckDB adapter.
+#
+# duckdb is pinned so the file written by the ingestion script can be opened by
+# the DuckDB version bundled inside dbt v2. DuckDB files are readable by the
+# same or a newer engine, not an older one, so keep this at or below dbt's.
+duckdb==1.5.4
+pandas>=2.2
+openpyxl>=3.1
+dbt>=2.0

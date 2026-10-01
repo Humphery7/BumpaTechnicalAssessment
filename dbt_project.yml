@@ -1,0 +1,19 @@
+name: bumpa_assessment
+version: "1.0.0"
+profile: bumpa_assessment
+
+require-dbt-version: [">=2.0.0", "<3.0.0"]
+
+model-paths: ["models"]
+test-paths: ["tests"]
+
+clean-targets:
+  - target
+  - dbt_packages
+
+models:
+  bumpa_assessment:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table

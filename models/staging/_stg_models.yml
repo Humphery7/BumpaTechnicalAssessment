@@ -1,0 +1,44 @@
+models:
+  - name: stg_merchant_orders
+    description: >
+      Cleaned orders: exact duplicates removed, dates and money correctly typed,
+      missing dates flagged.
+    columns:
+      - name: order_id
+        description: The Primary key.
+        data_tests:
+          - unique
+          - not_null
+      - name: merchant_id
+        description: Merchant who received the order.
+        data_tests:
+          - not_null
+      - name: order_date
+        description: Calendar date of the order. NULL when is_missing_order_date is true.
+      - name: is_missing_order_date
+        description: True when the source row had no date.
+        data_tests:
+          - not_null
+      - name: amount
+        description: >
+          Signed amount in the order's own currency. Positive for paid and
+          failed orders, negative for refunds.
+        data_tests:
+          - not_null
+      - name: currency
+        description: Currency of the order.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["NGN", "KES", "GHS"]
+      - name: status
+        description: >
+          paid = completed payment; refunded = a standalone negative-amount row
+          (it does not reference an original order); failed = payment did not
+          complete.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["paid", "refunded", "failed"]
